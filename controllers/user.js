@@ -188,3 +188,75 @@ export const listUsers = async (req, res) => {
     })
   }
 }
+
+export const updateUser = async (req, res) => {
+  try {
+    //Capture the user payload from the middleware
+    let userIdentity = req.user;
+    //Data send in the body that wee will update
+    let userToUpdate = req.body;
+
+    //delete fields that are not gonna be used.
+    delete userToUpdate.iat;
+    delete userToUpdate.exp;
+    delete userToUpdate.role;
+
+    //Check if the user already exist
+    const users = await User.find({
+      $or: [
+        { email: userToUpdate.email },
+        { nick: userToUpdate.nick }
+      ]
+    }).exec();
+
+    const isDuplicatedUser = users.some(user => {
+      return user && user._id.toString() !== userIdentity.userId;
+    })
+
+    if (isDuplicatedUser) {
+      return res.status(401).send({
+        status: 'error',
+        message: 'There was a error. Only authenticated users can update their user data'
+      })
+    }
+
+    //Encrypt password when user wants to update it
+    if (userToUpdate.password) {
+      try {
+        let pwd = await bycript.hash(userToUpdate.password, 10);
+        userToUpdate.password = pwd;
+      } catch (hashError) {
+        return res.status(500), send({
+          status: 'error',
+          message: 'There was an error encrypting your password'
+        })
+      }
+    } else {
+      delete userToUpdate.password;
+    }
+
+    //Update user
+    let userUpdated = await User.findByIdAndUpdate(userIdentity.userId, userToUpdate, { new: true });
+
+    console.log(userUpdated);
+
+    if (!userUpdated) {
+      return res.status(400).send({
+        status: 'error',
+        message: 'There was error updating the user data'
+      })
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'User udated successfully',
+      user: userUpdated
+    })
+  } catch (error) {
+    console.log('There was a error updating the user data');
+    return res.status(500).send({
+      status: 'error',
+      message: 'There was a error updating the user data'
+    })
+  }
+}
