@@ -345,14 +345,12 @@ export const counters = async (req, res) => {
   try {
     // Get authenticated user id from token
     let userId = req.user.userId;
-    console.log({ authenticated_userId: userId });
-    // Check if user id it's in the request url params.
+    // Check if an user id it's in the request url params. In case query user different from the current authenticated.
     if (req.params.id) {
       userId = req.params.id;
     }
     // Get user's name and lastname
     const user = await User.findById(userId, { name: 1, last_name: 1 });
-    console.log({ user_found: user });
 
     if (!user) {
       return res.status(404).send({
@@ -369,7 +367,6 @@ export const counters = async (req, res) => {
 
     // Counter for publications made by authenticated user
     const publicationsCount = await Publication.countDocuments({ "user_id": userId });
-    console.log({ counters: { followingCount, followedCount, publicationsCount } });
 
     // Return counters
     return res.status(200).json({
