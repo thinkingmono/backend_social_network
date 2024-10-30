@@ -19,10 +19,10 @@ const FollowSchema = Schema({
 });
 
 //Config mongo pagination plugin
-UserSchema.plugin(mongoosePaginate);
+FollowSchema.plugin(mongoosePaginate);
 
 //Adding unique relation between following_user and followed_user. No repeat documents.
-FollowSchema.index({ following_user: 1, followed_user: 1 }, { unique });
+FollowSchema.index({ following_user: 1, followed_user: 1 }, { unique: true });
 
 //export name model name, schema name and mogodb collection.
 export default model('Follow', FollowSchema, 'follows');
