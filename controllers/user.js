@@ -1,6 +1,9 @@
 import User from '../models/users.js'
+import Follow from '../models/follows.js';
+import Publication from '../models/publications.js';
 import bycript from 'bcrypt'
 import { createToken } from '../services/jwt.js'
+import { followThisUser, followUserIds } from '../services/followServices.js';
 
 export const testUser = (req, res) => {
   return res.status(200).send({
@@ -136,9 +139,13 @@ export const profile = async (req, res) => {
       })
     }
 
+    //Follow information: identified user id from token and user id whose we want to query from request url params.
+    const followInfo = await followThisUser(req.user.userId, userId);
+
     return res.status(200).json({
       status: 'success',
-      user: userProfile
+      user: userProfile,
+      followInfo
     })
   } catch (error) {
     console.log('There was a error recovering the user profile data');
@@ -172,12 +179,17 @@ export const listUsers = async (req, res) => {
       })
     }
 
+    //List user's followers. Get the user ids array i folllow
+    let followUsers = await followUserIds(req);
+
     return res.status(200).json({
       status: 'success',
       users: users.docs,
       totalDocs: users.totalDocs,
       totalPages: users.totalPages,
-      currentPage: users.page
+      currentPage: users.page,
+      users_following: followUsers.following,
+      user_follow_me: followUsers.followers
     })
 
   } catch (error) {
@@ -238,8 +250,6 @@ export const updateUser = async (req, res) => {
     //Update user
     let userUpdated = await User.findByIdAndUpdate(userIdentity.userId, userToUpdate, { new: true });
 
-    console.log(userUpdated);
-
     if (!userUpdated) {
       return res.status(400).send({
         status: 'error',
@@ -258,5 +268,124 @@ export const updateUser = async (req, res) => {
       status: 'error',
       message: 'There was a error updating the user data'
     })
+  }
+}
+
+export const uploadAvatar = async (req, res) => {
+  try {
+    //Check if there is a file uploaded.
+    if (!req.file) {
+      return res.status(400).send({
+        status: "error",
+        message: "There was an error. There is no image in the request"
+      });
+    }
+
+    //Get image path from cloudinary
+    const avatarUrl = req.file.path;
+
+    // Update image path into authenticated user.
+    const userUpdated = await User.findByIdAndUpdate(
+      req.user.userId,
+      { image: avatarUrl },
+      { new: true }
+    );
+
+    if (!userUpdated) {
+      return res.status(500).send({
+        status: "error",
+        message: "There was an error uploading your avatar image"
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      user: userUpdated,
+      file: avatarUrl
+    });
+
+  } catch (error) {
+    console.log("Error al subir el archivo del avatar", error);
+    return res.status(500).send({
+      status: "error",
+      message: "Error al subir el archivo del avatar"
+    });
+  }
+};
+
+export const avatar = async (req, res) => {
+  try {
+    //Get user id from request params
+    const userId = req.params.id;
+
+    //Get user's avatar from the db
+    const user = await User.findById(userId).select('image');
+
+    if (!user || !user.image) {
+      return res.status(404).send({
+        status: "error",
+        message: "The user does not exist or has no image"
+      });
+    }
+
+    // Redirect to avatar image path
+    return res.redirect(user.image)
+
+  } catch (error) {
+    console.log("There was an error showing the avatar", error);
+    return res.status(500).send({
+      status: "error",
+      message: "There was an error showing the avatar"
+    });
+  }
+};
+
+// Method to show followers and publications counter
+export const counters = async (req, res) => {
+  try {
+    // Get authenticated user id from token
+    let userId = req.user.userId;
+    console.log({ authenticated_userId: userId });
+    // Check if user id it's in the request url params.
+    if (req.params.id) {
+      userId = req.params.id;
+    }
+    // Get user's name and lastname
+    const user = await User.findById(userId, { name: 1, last_name: 1 });
+    console.log({ user_found: user });
+
+    if (!user) {
+      return res.status(404).send({
+        status: "error",
+        message: "User not found"
+      });
+    }
+
+    // Counter for users that authenticated user follows.
+    const followingCount = await Follow.countDocuments({ "following_user": userId });
+
+    // Counter for users that follow the authenticated user
+    const followedCount = await Follow.countDocuments({ "followed_user": userId });
+
+    // Counter for publications made by authenticated user
+    const publicationsCount = await Publication.countDocuments({ "user_id": userId });
+    console.log({ counters: { followingCount, followedCount, publicationsCount } });
+
+    // Return counters
+    return res.status(200).json({
+      status: "success",
+      userId,
+      name: user.name,
+      last_name: user.last_name,
+      followingCount: followingCount,
+      followedCount: followedCount,
+      publicationsCount: publicationsCount
+    });
+  } catch (error) {
+    console.log("There was an error generating the counters", error)
+    return res.status(500).send({
+      status: "error",
+      message: "There was an error generating the counters"
+    });
   }
 }
