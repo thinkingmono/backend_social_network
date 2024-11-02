@@ -50,7 +50,7 @@ export const register = async (req, res) => {
 
     //Successfull response
     return res.status(201).json({
-      status: 'Success',
+      status: 'created',
       message: 'The user was created successfully',
       user_to_save: userToSave
     })
